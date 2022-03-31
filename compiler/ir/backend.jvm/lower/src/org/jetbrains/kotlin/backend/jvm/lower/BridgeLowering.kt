@@ -114,7 +114,7 @@ internal val bridgePhase = makeIrFilePhase(
     ::BridgeLowering,
     name = "Bridge",
     description = "Generate bridges",
-    prerequisite = setOf(jvmInlineClassPhase)
+    prerequisite = setOf(jvmInlineClassPhase, jvmMultiFieldValueClassPhase)
 )
 
 internal class BridgeLowering(val context: JvmBackendContext) : FileLoweringPass, IrElementTransformerVoid() {
@@ -364,7 +364,9 @@ internal class BridgeLowering(val context: JvmBackendContext) : FileLoweringPass
 
     private fun IrSimpleFunction.mangleFunctionIfNeeded(): IrSimpleFunction {
         if (!hasMangledReturnType && !hasMangledParameters) return this
-        val replacement = context.inlineClassReplacements.getReplacementFunction(this) ?: return this
+        val replacement = context.multiFieldValueClassReplacements.getReplacementFunction(this)
+            ?: context.inlineClassReplacements.getReplacementFunction(this) 
+            ?: return this
         if (name.asString().substringAfterLast('-') == replacement.name.asString().substringAfterLast('-')) {
             // function is already mangled
             return this
