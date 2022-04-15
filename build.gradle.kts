@@ -491,6 +491,7 @@ allprojects {
 
     val commonCompilerArgs = listOfNotNull(
         "-opt-in=kotlin.RequiresOptIn",
+        "-Xskip-prerelease-check",
         "-progressive".takeIf { hasProperty("test.progressive.mode") }
     )
 
