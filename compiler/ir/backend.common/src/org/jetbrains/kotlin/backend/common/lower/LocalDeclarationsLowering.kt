@@ -887,7 +887,7 @@ class LocalDeclarationsLowering(
         }
 
         private fun collectLocalDeclarations() {
-            val enclosingFile = container.file
+            val enclosingPackageFragment = container.getPackageFragment()
             val enclosingClass = run {
                 var currentParent = container as? IrClass ?: container.parent
                 while (currentParent is IrDeclaration && currentParent !is IrClass) {
@@ -927,7 +927,7 @@ class LocalDeclarationsLowering(
                         val enclosingScope = data.currentClass
                             ?: enclosingClass?.scopeWithCounter
                             // File is required for K/N because file declarations are not split by classes.
-                            ?: enclosingFile.scopeWithCounter
+                            ?: enclosingPackageFragment.scopeWithCounter
                         val index =
                             if (declaration.name.isSpecial || declaration.name in enclosingScope.usedLocalFunctionNames)
                                 enclosingScope.counter++
