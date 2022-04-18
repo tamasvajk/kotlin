@@ -5021,7 +5021,7 @@ tasks.register("KT-50983", KonanDriverTest) {
         mkdir(buildDir)
         exec {
             commandLine UtilsKt.binaryFromToolchain(project, "windres")
-            args "$projectDir/windows/KT-50983/File.rc", "-O", "coff", "-o", "$buildDir/File.res"
+            args "$projectDir\\windows\\KT-50983\\File.rc", "-O", "coff", "-o", "$buildDir\\File.res"
         }
     }
     source = "windows/KT-50983/main.kt"
