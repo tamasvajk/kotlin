@@ -76,6 +76,8 @@ fun deserializeClassToSymbol(
             containerSource,
             symbol,
             annotationDeserializer,
+            ((containerSource as? KotlinJvmBinarySourceElement)?.binaryClass)?.let { FirConstDeserializer(session, it) }
+                ?: parentContext.constDeserializer,
             status.isInner
         ) ?: FirDeserializationContext.createForClass(
             classId,
@@ -203,9 +205,9 @@ fun deserializeClassToSymbol(
             }
             it.setSealedClassInheritors(inheritors)
         }
-        
+
         it.valueClassRepresentation = computeValueClassRepresentation(it, session)
-        
+
         (it.annotations as MutableList<FirAnnotation>) +=
             context.annotationDeserializer.loadClassAnnotations(classProto, context.nameResolver)
 
