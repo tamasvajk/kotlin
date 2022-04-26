@@ -183,6 +183,10 @@ public class DirectiveTestUtils {
             this.isElementExists = isElementExists;
         }
 
+        protected boolean isElementExists() {
+            return isElementExists;
+        }
+
         @Override
         void processEntry(@NotNull JsNode ast, @NotNull ArgumentsHelper arguments) throws Exception {
             loadArguments(arguments);
@@ -305,54 +309,24 @@ public class DirectiveTestUtils {
 
         @Override
         protected JsVisitor getJsVisitorForElement() {
-            return isMultiLine ? new RecursiveJsVisitor() {
+            return new RecursiveJsVisitor() {
                 @Override
-                public void visitMultiLineComment(@NotNull JsMultiLineComment comment) {
-                    if (comment.getText().trim().equals(text)) {
-                        setElementExists(true);
+                protected void visitElement(@NotNull JsNode node) {
+                    checkCommentExistsIn(node.getCommentsBeforeNode());
+                    checkCommentExistsIn(node.getCommentsAfterNode());
+                    super.visitElement(node);
+                }
+                private void checkCommentExistsIn(List<JsComment> comments) {
+                    if (comments == null) return;
+                    for (JsComment comment : comments) {
+                        if (isNeededCommentType(comment) && comment.getText().trim().equals(text)) {
+                            setElementExists(true);
+                        }
                     }
                 }
-            } : new RecursiveJsVisitor() {
-                @Override
-                public void visitSingleLineComment(@NotNull JsSingleLineComment comment) {
-                    if (comment.getText().trim().equals(text)) {
-                        setElementExists(true);
-                    }
-                }
-            };
-        }
 
-        @Override
-        protected void loadArguments(@NotNull ArgumentsHelper arguments) {
-            this.text = arguments.findNamedArgument("text");
-            this.isMultiLine = Boolean.parseBoolean(arguments.findNamedArgument("multiline"));
-        }
-    };
-
-    private static final DirectiveHandler CHECK_COMMENT_DOESNT_EXIST = new NodeExistenceDirective("CHECK_COMMENT_DOESNT_EXIST", false) {
-        private String text;
-        private boolean isMultiLine;
-
-        @Override
-        protected String getTextForError() {
-            return (isMultiLine ? "Multi line" : "Single line") + " comment with text '" + text + "' exists, but it should not";
-        }
-
-        @Override
-        protected JsVisitor getJsVisitorForElement() {
-            return isMultiLine ? new RecursiveJsVisitor() {
-                @Override
-                public void visitMultiLineComment(@NotNull JsMultiLineComment comment) {
-                    if (comment.getText().trim() == text) {
-                        setElementExists(true);
-                    }
-                }
-            } : new RecursiveJsVisitor() {
-                @Override
-                public void visitSingleLineComment(@NotNull JsSingleLineComment comment) {
-                    if (comment.getText().trim() == text) {
-                        setElementExists(true);
-                    }
+                private boolean isNeededCommentType(JsComment comment) {
+                    return isMultiLine ? comment instanceof JsMultiLineComment : comment instanceof  JsSingleLineComment;
                 }
             };
         }
@@ -482,7 +456,6 @@ public class DirectiveTestUtils {
             FUNCTIONS_HAVE_SAME_LINES,
             ONLY_THIS_QUALIFIED_REFERENCES,
             CHECK_COMMENT_EXISTS,
-            CHECK_COMMENT_DOESNT_EXIST,
             COUNT_LABELS,
             COUNT_VARS,
             COUNT_BREAKS,
