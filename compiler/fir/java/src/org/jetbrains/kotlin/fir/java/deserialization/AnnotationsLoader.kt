@@ -18,11 +18,9 @@ import org.jetbrains.kotlin.fir.resolve.providers.getClassDeclaredPropertySymbol
 import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
 import org.jetbrains.kotlin.fir.symbols.ConeClassLikeLookupTag
 import org.jetbrains.kotlin.fir.symbols.impl.ConeClassLikeLookupTagImpl
-import org.jetbrains.kotlin.fir.types.ConeClassLikeType
-import org.jetbrains.kotlin.fir.types.FirResolvedTypeRef
+import org.jetbrains.kotlin.fir.symbols.impl.FirEnumEntrySymbol
+import org.jetbrains.kotlin.fir.types.*
 import org.jetbrains.kotlin.fir.types.builder.buildResolvedTypeRef
-import org.jetbrains.kotlin.fir.types.coneType
-import org.jetbrains.kotlin.fir.types.constructClassType
 import org.jetbrains.kotlin.load.java.JvmAbi
 import org.jetbrains.kotlin.load.kotlin.KotlinClassFinder
 import org.jetbrains.kotlin.load.kotlin.KotlinJvmBinaryClass
@@ -30,6 +28,7 @@ import org.jetbrains.kotlin.load.kotlin.findKotlinClass
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.name.StandardClassIds
+import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator.commonSuperType
 import org.jetbrains.kotlin.resolve.constants.ClassLiteralValue
 
 internal class AnnotationsLoader(private val session: FirSession, private val kotlinClassFinder: KotlinClassFinder) {
@@ -49,8 +48,13 @@ internal class AnnotationsLoader(private val session: FirSession, private val ko
 
             private fun ClassLiteralValue.toFirClassReferenceExpression(): FirClassReferenceExpression {
                 val literalLookupTag = ConeClassLikeLookupTagImpl(classId)
+                val resolvedClassType = literalLookupTag.toDefaultResolvedTypeRef()
                 return buildClassReferenceExpression {
-                    classTypeRef = literalLookupTag.toDefaultResolvedTypeRef()
+                    classTypeRef = resolvedClassType
+                }.also {
+                    it.replaceTypeRef(buildResolvedTypeRef {
+                        type = StandardClassIds.KClass.constructClassLikeType(arrayOf(resolvedClassType.type), false)
+                    })
                 }
             }
 
@@ -77,6 +81,10 @@ internal class AnnotationsLoader(private val session: FirSession, private val ko
                             }
                         }
                     }
+                    val resolvedReturnTypeRef = (entryPropertySymbol as? FirEnumEntrySymbol)?.resolvedReturnTypeRef
+                    if (resolvedReturnTypeRef != null) {
+                        typeRef = resolvedReturnTypeRef
+                    }
                 }
             }
 
@@ -84,6 +92,8 @@ internal class AnnotationsLoader(private val session: FirSession, private val ko
                 if (name == null) return
                 argumentMap[name] = buildGetClassCall {
                     argumentList = buildUnaryArgumentList(value.toFirClassReferenceExpression())
+                }.also {
+                    it.replaceTypeRef(it.argument.typeRef)
                 }
             }
 
@@ -109,6 +119,8 @@ internal class AnnotationsLoader(private val session: FirSession, private val ko
                         elements.add(
                             buildGetClassCall {
                                 argumentList = buildUnaryArgumentList(value.toFirClassReferenceExpression())
+                            }.also {
+                                it.replaceTypeRef(it.argument.typeRef)
                             }
                         )
                     }
@@ -128,6 +140,14 @@ internal class AnnotationsLoader(private val session: FirSession, private val ko
                         argumentMap[name] = buildArrayOfCall {
                             argumentList = buildArgumentList {
                                 arguments += elements
+                            }
+                            val elementType = if (elements.isNotEmpty()) {
+                                session.typeContext.commonSuperType(elements.map { it.typeRef.coneType }) as ConeKotlinType
+                            } else {
+                                session.builtinTypes.anyType.type
+                            }
+                            typeRef = buildResolvedTypeRef {
+                                type = elementType.createArrayType()
                             }
                         }
                     }
