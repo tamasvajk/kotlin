@@ -16,6 +16,8 @@ import org.jetbrains.kotlin.backend.common.lower.createIrBuilder
 import org.jetbrains.kotlin.backend.common.lower.irNot
 import org.jetbrains.kotlin.backend.common.phaser.makeIrFilePhase
 import org.jetbrains.kotlin.backend.jvm.*
+import org.jetbrains.kotlin.backend.jvm.MemoizedMultiFieldValueClassReplacements.RemappedParameter.MultiFieldValueClassMapping
+import org.jetbrains.kotlin.backend.jvm.MemoizedMultiFieldValueClassReplacements.RemappedParameter.RegularMapping
 import org.jetbrains.kotlin.backend.jvm.ir.*
 import org.jetbrains.kotlin.codegen.AsmUtil
 import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
@@ -363,9 +365,9 @@ internal class BridgeLowering(val context: JvmBackendContext) : FileLoweringPass
     }
 
     private fun IrSimpleFunction.mangleFunctionIfNeeded(): IrSimpleFunction {
-        if (!hasMangledReturnType && !hasMangledParameters) return this
+        if (!hasMangledReturnType && !hasMangledParameters()) return this
         val replacement = context.multiFieldValueClassReplacements.getReplacementFunction(this)
-            ?: context.inlineClassReplacements.getReplacementFunction(this) 
+            ?: context.inlineClassReplacements.getReplacementFunction(this)
             ?: return this
         if (name.asString().substringAfterLast('-') == replacement.name.asString().substringAfterLast('-')) {
             // function is already mangled
@@ -628,16 +630,49 @@ internal class BridgeLowering(val context: JvmBackendContext) : FileLoweringPass
     ) =
         irCastIfNeeded(
             irCall(target, origin = IrStatementOrigin.BRIDGE_DELEGATION, superQualifierSymbol = superQualifierSymbol).apply {
-                for ((param, targetParam) in bridge.explicitParameters.zip(target.explicitParameters)) {
-                    putArgument(
-                        targetParam,
-                        irGet(param).let { argument ->
-                            if (param == bridge.dispatchReceiverParameter)
-                                argument
-                            else
-                                irCastIfNeeded(argument, targetParam.type.upperBound)
+                val mfvcOrOriginal =
+                    this@BridgeLowering.context.inlineClassReplacements.originalFunctionForMethodReplacement[target] ?: target
+                val structure = with(this@BridgeLowering.context.multiFieldValueClassReplacements) {
+                    originalFunctionForMethodReplacement[mfvcOrOriginal]
+                        ?.let { bindingParameterTemplateStructure[it] }
+                        ?.also { structure ->
+                            val errorMessage = { "Bad parameters structure: $structure" }
+                            require(structure.size == bridge.explicitParametersCount) { errorMessage() }
+                            require(structure.sumOf { it.valueParameters.size } == target.explicitParametersCount) { errorMessage() }
                         }
-                    )
+                }
+
+                fun irGetOrCast(bridgeParameter: IrValueParameter, targetParameter: IrValueParameter) =
+                    irGet(bridgeParameter).let { argument ->
+                        if (bridgeParameter == bridge.dispatchReceiverParameter)
+                            argument
+                        else
+                            irCastIfNeeded(argument, targetParameter.type.upperBound)
+                    }
+
+                val targetParameters = target.explicitParameters
+                val flattenedBridgeArguments = when (structure) {
+                    null -> bridge.explicitParameters.zip(target.explicitParameters, ::irGetOrCast)
+                    else -> {
+                        var index = 0
+                        (structure zip bridge.explicitParameters).flatMap { (remappedParameter, bridgeParameter) ->
+                            when (remappedParameter) {
+                                is MultiFieldValueClassMapping -> remappedParameter.declarations.unboxMethods.map { unboxFunction ->
+                                    irCall(unboxFunction).apply {
+                                        dispatchReceiver = 
+                                            irCastIfNeeded(irGet(bridgeParameter), remappedParameter.declarations.valueClass.defaultType)
+                                    }
+                                }.also { index += it.size }
+                                is RegularMapping -> listOf(irGetOrCast(bridgeParameter, targetParameters[index++]))
+                            }
+                        }
+                    }
+                }
+                require(targetParameters.size == flattenedBridgeArguments.size) {
+                    "Incorrect number of arguments: ${flattenedBridgeArguments.size} instead of ${targetParameters.size}"
+                }
+                for ((targetParam, argument) in target.explicitParameters zip flattenedBridgeArguments) {
+                    putArgument(targetParam, argument)
                 }
             },
             bridge.returnType.upperBound

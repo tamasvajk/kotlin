@@ -11,10 +11,10 @@ import org.jetbrains.kotlin.backend.common.ir.copyTo
 import org.jetbrains.kotlin.backend.common.lower.createIrBuilder
 import org.jetbrains.kotlin.backend.jvm.JvmBackendContext
 import org.jetbrains.kotlin.backend.jvm.JvmLoweredDeclarationOrigin
+import org.jetbrains.kotlin.backend.jvm.getRequiresMangling
 import org.jetbrains.kotlin.backend.jvm.hasMangledReturnType
 import org.jetbrains.kotlin.backend.jvm.ir.eraseTypeParameters
 import org.jetbrains.kotlin.backend.jvm.ir.needsAccessor
-import org.jetbrains.kotlin.backend.jvm.requiresMangling
 import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Modality
@@ -28,7 +28,10 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrFieldAccessExpression
 import org.jetbrains.kotlin.ir.expressions.impl.IrBlockBodyImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrGetFieldImpl
-import org.jetbrains.kotlin.ir.types.*
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.classifierOrNull
+import org.jetbrains.kotlin.ir.types.isSubtypeOfClass
+import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.util.*
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 import org.jetbrains.kotlin.load.java.JvmAbi
@@ -217,7 +220,7 @@ class JvmPropertiesLowering(private val backendContext: JvmBackendContext) : IrE
                     val getter = property.getter
                     if (getter != null) {
                         val needsMangling =
-                            getter.extensionReceiverParameter?.type?.requiresMangling == true ||
+                            getter.extensionReceiverParameter?.type?.getRequiresMangling(includeInline = true, includeMFVC = false) == true ||
                                     (state.functionsWithInlineClassReturnTypesMangled && getter.hasMangledReturnType)
                         val mangled = if (needsMangling) inlineClassReplacements.getReplacementFunction(getter) else null
                         methodSignatureMapper.mapFunctionName(mangled ?: getter)

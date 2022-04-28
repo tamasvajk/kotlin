@@ -371,7 +371,7 @@ private class SyntheticAccessorTransformer(
 
             val constructedClass = constructedClass
 
-            if (!DescriptorVisibilities.isPrivate(visibility) && !constructedClass.isSingleFieldValueClass && hasMangledParameters &&
+            if (!DescriptorVisibilities.isPrivate(visibility) && !constructedClass.isValue && hasMangledParameters() &&
                 !constructedClass.isAnonymousObject
             ) return true
 
