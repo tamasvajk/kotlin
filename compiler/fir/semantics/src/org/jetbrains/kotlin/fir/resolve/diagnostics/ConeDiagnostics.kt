@@ -60,6 +60,11 @@ class ConeUnresolvedNameError(val name: Name) : ConeUnresolvedError {
     override val reason: String get() = "Unresolved name: $name"
 }
 
+class ConeUnresolvedNameOnUnfixedReceiverError(val name: Name) : ConeUnresolvedError {
+    override val qualifier: String get() = name.asString()
+    override val reason: String get() = "Unresolved reference on a receiver which hasn't been fixed yet: $name"
+}
+
 class ConeFunctionCallExpectedError(
     val name: Name,
     val hasValueParameters: Boolean,

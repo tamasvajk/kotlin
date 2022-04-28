@@ -250,6 +250,12 @@ internal class UnresolvedReferenceImpl(
     override val token: ValidityToken,
 ) : KtFirDiagnostic.UnresolvedReference(), KtAbstractFirDiagnostic<PsiElement>
 
+internal class UnresolvedReferenceOnUnfixedReceiverImpl(
+    override val reference: String,
+    override val firDiagnostic: KtPsiDiagnostic,
+    override val token: ValidityToken,
+) : KtFirDiagnostic.UnresolvedReferenceOnUnfixedReceiver(), KtAbstractFirDiagnostic<PsiElement>
+
 internal class UnresolvedLabelImpl(
     override val firDiagnostic: KtPsiDiagnostic,
     override val token: ValidityToken,

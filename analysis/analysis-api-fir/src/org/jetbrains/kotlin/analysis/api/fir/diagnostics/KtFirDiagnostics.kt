@@ -220,6 +220,11 @@ sealed class KtFirDiagnostic<PSI : PsiElement> : KtDiagnosticWithPsi<PSI> {
         abstract val reference: String
     }
 
+    abstract class UnresolvedReferenceOnUnfixedReceiver : KtFirDiagnostic<PsiElement>() {
+        override val diagnosticClass get() = UnresolvedReferenceOnUnfixedReceiver::class
+        abstract val reference: String
+    }
+
     abstract class UnresolvedLabel : KtFirDiagnostic<PsiElement>() {
         override val diagnosticClass get() = UnresolvedLabel::class
     }

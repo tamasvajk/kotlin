@@ -267,6 +267,13 @@ internal val KT_DIAGNOSTIC_CONVERTER = KtDiagnosticConverterBuilder.buildConvert
             token,
         )
     }
+    add(FirErrors.UNRESOLVED_REFERENCE_ON_UNFIXED_RECEIVER) { firDiagnostic ->
+        UnresolvedReferenceOnUnfixedReceiverImpl(
+            firDiagnostic.a,
+            firDiagnostic as KtPsiDiagnostic,
+            token,
+        )
+    }
     add(FirErrors.UNRESOLVED_LABEL) { firDiagnostic ->
         UnresolvedLabelImpl(
             firDiagnostic as KtPsiDiagnostic,

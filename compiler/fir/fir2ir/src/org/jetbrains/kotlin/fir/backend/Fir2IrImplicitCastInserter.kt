@@ -254,7 +254,13 @@ class Fir2IrImplicitCastInserter(
 
     override fun visitExpressionWithSmartcast(expressionWithSmartcast: FirExpressionWithSmartcast, data: IrElement): IrExpression {
         return if (expressionWithSmartcast.isStable) {
-            implicitCastOrExpression(data as IrExpression, expressionWithSmartcast.typeRef)
+            val typeRef = if (expressionWithSmartcast.typeRef.coneType !is ConeStubType) {
+                expressionWithSmartcast.typeRef
+            } else {
+                val notStubTypes = expressionWithSmartcast.typesFromSmartCast.filter { it.type !is ConeStubType }
+                session.typeContext.intersectTypes(notStubTypes).toFirResolvedTypeRef()
+            }
+            implicitCastOrExpression(data as IrExpression, typeRef)
         } else {
             data as IrExpression
         }
