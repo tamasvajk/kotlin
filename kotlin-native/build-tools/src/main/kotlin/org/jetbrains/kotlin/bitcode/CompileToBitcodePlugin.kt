@@ -7,11 +7,17 @@ package org.jetbrains.kotlin.bitcode
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.plugins.BasePlugin
-import org.jetbrains.kotlin.createCompilationDatabasesFromCompileToBitcodeTasks
+import org.jetbrains.kotlin.GenerateCompilationDatabase
+import org.jetbrains.kotlin.MergeCompilationDatabases
 import org.jetbrains.kotlin.konan.target.PlatformManager
 import org.jetbrains.kotlin.konan.target.SanitizerKind
 import org.jetbrains.kotlin.konan.target.supportedSanitizers
+import org.jetbrains.kotlin.testing.native.CompileNativeTest
+import org.jetbrains.kotlin.testing.native.GoogleTestExtension
+import org.jetbrains.kotlin.testing.native.RunNativeTest
+import org.jetbrains.kotlin.testing.native.RuntimeTestingPlugin
 import java.io.File
 import java.util.*
 import javax.inject.Inject
@@ -22,17 +28,11 @@ import javax.inject.Inject
 open class CompileToBitcodePlugin: Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         extensions.create(EXTENSION_NAME, CompileToBitcodeExtension::class.java, target)
-
-        afterEvaluate {
-            // TODO: Support providers (https://docs.gradle.org/current/userguide/lazy_configuration.html)
-            //       in database tasks and create them along with corresponding compile tasks (not in afterEvaluate).
-            createCompilationDatabasesFromCompileToBitcodeTasks(project, COMPILATION_DATABASE_TASK_NAME)
-        }
+        Unit
     }
 
     companion object {
         const val EXTENSION_NAME = "bitcode"
-        const val COMPILATION_DATABASE_TASK_NAME = "CompilationDatabase"
     }
 }
 
@@ -42,7 +42,46 @@ open class CompileToBitcodeExtension @Inject constructor(val project: Project) {
         provider { (rootProject.project(":kotlin-native").property("targetList") as? List<*>)?.filterIsInstance<String>() ?: emptyList() } // TODO: Can we make it better?
     }
 
-    fun create(
+    private val allMainModulesTasks by lazy {
+        val name = project.name.capitalize()
+        targetList.get().associateBy(keySelector = { it }, valueTransform = {
+            project.tasks.register("${it}$name")
+        })
+    }
+
+    private val allTestsTasks by lazy {
+        val name = project.name.capitalize()
+        targetList.get().associateBy(keySelector = { it }, valueTransform = {
+            project.tasks.register("${it}${name}Tests")
+        })
+    }
+
+    private val compdbTasks by lazy {
+        targetList.get().associateBy(keySelector = { it }, valueTransform = {
+            val task = project.tasks.register("${it}${COMPILATION_DATABASE_TASK_NAME}", MergeCompilationDatabases::class.java)
+            task.configure {
+                outputFile = File(File(project.buildDir, it), "compile_commands.json")
+            }
+            task
+        })
+    }
+
+    private fun addToCompdb(compileTask: CompileToBitcode) {
+        val task = project.tasks.create("${compileTask.name}_CompilationDatabase",
+                GenerateCompilationDatabase::class.java,
+                compileTask.target,
+                compileTask.inputFiles,
+                compileTask.executable,
+                compileTask.compilerFlags,
+                compileTask.objDir)
+        val compdbTask = compdbTasks[compileTask.target]!!
+        compdbTask.configure {
+            dependsOn(task)
+            inputFiles.add(task.outputFile)
+        }
+    }
+
+    fun module(
             name: String,
             srcRoot: File = project.file("src/$name"),
             outputGroup: String = "main",
@@ -52,15 +91,15 @@ open class CompileToBitcodeExtension @Inject constructor(val project: Project) {
             val platformManager = project.rootProject.project(":kotlin-native").findProperty("platformManager") as PlatformManager
             val target = platformManager.targetByName(targetName)
             val sanitizers: List<SanitizerKind?> = target.supportedSanitizers() + listOf(null)
+            val allMainModulesTask = allMainModulesTasks[targetName]!!
             sanitizers.forEach { sanitizer ->
-                project.tasks.register(
-                    "${targetName}${
-                        name.snakeCaseToCamelCase()
-                            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-                    }${suffixForSanitizer(sanitizer)}",
-                    CompileToBitcode::class.java,
-                    name, targetName, outputGroup
-                ).configure {
+                val taskName = "${targetName}${name.snakeCaseToCamelCase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+                    }${suffixForSanitizer(sanitizer)}"
+                val task = project.tasks.create(
+                        taskName,
+                        CompileToBitcode::class.java,
+                        name, targetName, outputGroup
+                ).apply {
                     srcDirs = project.files(srcRoot.resolve("cpp"))
                     headersDirs = srcDirs + project.files(srcRoot.resolve("headers"))
 
@@ -75,11 +114,120 @@ open class CompileToBitcodeExtension @Inject constructor(val project: Project) {
                     dependsOn(":kotlin-native:dependencies:update")
                     configurationBlock()
                 }
+                addToCompdb(task)
+                if (outputGroup == "main" && sanitizer == null) {
+                    allMainModulesTask.configure {
+                        dependsOn(taskName)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun createTestTask(
+            project: Project,
+            testName: String,
+            testedTaskNames: List<String>,
+            sanitizer: SanitizerKind?,
+    ): Task {
+        val platformManager = project.project(":kotlin-native").findProperty("platformManager") as PlatformManager
+        val googleTestExtension = project.extensions.getByName(RuntimeTestingPlugin.GOOGLE_TEST_EXTENSION_NAME) as GoogleTestExtension
+        val testedTasks = testedTaskNames.map {
+            project.tasks.getByName(it) as CompileToBitcode
+        }
+        val target = testedTasks.map {
+            it.target
+        }.distinct().single()
+        val konanTarget = platformManager.targetByName(target)
+        val compileToBitcodeTasks = testedTasks.mapNotNull {
+            val name = "${it.name}TestBitcode"
+            val task = project.tasks.findByName(name) as? CompileToBitcode ?:
+            project.tasks.create(name,
+                    CompileToBitcode::class.java,
+                    "${it.folderName}Tests",
+                    target, "test"
+            ).apply {
+                srcDirs = it.srcDirs
+                headersDirs = it.headersDirs + googleTestExtension.headersDirs
+
+                this.sanitizer = sanitizer
+                excludeFiles = emptyList()
+                includeFiles = listOf("**/*Test.cpp", "**/*TestSupport.cpp", "**/*Test.mm", "**/*TestSupport.mm")
+                dependsOn(":kotlin-native:dependencies:update")
+                dependsOn("downloadGoogleTest")
+                compilerArgs.addAll(it.compilerArgs)
+
+                addToCompdb(this)
+            }
+            if (task.inputFiles.count() == 0)
+                null
+            else
+                task
+        }
+        // TODO: Consider using sanitized versions.
+        val testFrameworkTasks = listOf(
+                project.tasks.getByName("${target}Googletest") as CompileToBitcode,
+                project.tasks.getByName("${target}Googlemock") as CompileToBitcode
+        )
+
+        val testSupportTask = project.tasks.getByName("${target}TestSupport${CompileToBitcodeExtension.suffixForSanitizer(sanitizer)}") as CompileToBitcode
+
+        val mimallocEnabled = testedTaskNames.any { it.contains("mimalloc", ignoreCase = true) }
+        val compileTask = project.tasks.create(
+                "${testName}Compile",
+                CompileNativeTest::class.java,
+                testName,
+                konanTarget,
+                testSupportTask.outFile,
+                platformManager,
+                mimallocEnabled,
+        ).apply {
+            val tasksToLink = (compileToBitcodeTasks + testedTasks + testFrameworkTasks)
+            this.sanitizer = sanitizer
+            this.inputFiles.setFrom(tasksToLink.map { it.outFile })
+            dependsOn(testSupportTask)
+            dependsOn(tasksToLink)
+        }
+
+        val runTask = project.tasks.create(
+                testName,
+                RunNativeTest::class.java,
+                testName,
+                compileTask.outputFile,
+        ).apply {
+            this.sanitizer = sanitizer
+            dependsOn(compileTask)
+        }
+
+        return runTask
+    }
+
+    fun testsGroup(
+            testTaskName: String,
+            testedTaskNames: List<String>,
+    ) {
+        val platformManager = project.rootProject.project(":kotlin-native").findProperty("platformManager") as PlatformManager
+        targetList.get().forEach { targetName ->
+            val target = platformManager.targetByName(targetName)
+            val sanitizers: List<SanitizerKind?> = target.supportedSanitizers() + listOf(null)
+            val allTestsTask = allTestsTasks[targetName]!!
+            sanitizers.forEach { sanitizer ->
+                val suffix = CompileToBitcodeExtension.suffixForSanitizer(sanitizer)
+                val name = targetName + testTaskName.snakeCaseToCamelCase().capitalize() + suffix
+                val testedNames = testedTaskNames.map {
+                    targetName + it.snakeCaseToCamelCase().capitalize() + suffix
+                }
+                val task = createTestTask(project, name, testedNames, sanitizer)
+                allTestsTask.configure {
+                    dependsOn(task)
+                }
             }
         }
     }
 
     companion object {
+
+        private const val COMPILATION_DATABASE_TASK_NAME = "CompilationDatabase"
 
         private fun String.snakeCaseToCamelCase() =
                 split('_').joinToString(separator = "") { it.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() } }
