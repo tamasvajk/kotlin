@@ -66,10 +66,12 @@ extern "C" const char* Kotlin_callsCheckerGoodFunctionNames[] = {
         "__memset_chk",
 
         "abort",
+        "access",
         "acos",
         "acosf",
         "acosh",
         "acoshf",
+        "arc4random_buf",
         "asin",
         "asinf",
         "asinh",
@@ -135,6 +137,7 @@ extern "C" const char* Kotlin_callsCheckerGoodFunctionNames[] = {
         "strcmp",
         "strlen",
         "strnlen",
+        "syscall",
         "tan",
         "tanf",
         "tanh",
@@ -150,6 +153,7 @@ extern "C" const char* Kotlin_callsCheckerGoodFunctionNames[] = {
         "pthread_equal",
         "pthread_main_np",
         "pthread_self",
+        "pthread_setspecific",
 
         "+[NSMethodSignature signatureWithObjCTypes:]",
         "+[NSNull null]",
@@ -267,6 +271,7 @@ extern "C" const char* Kotlin_callsCheckerGoodFunctionNames[] = {
         "llvm.uadd.sat.*",
         "llvm.aarch64.neon.*",
 
+        "BCryptGenRandom",
         "SetConsoleOutputCP",
         "SetConsoleCP",
         "QueryPerformanceCounter",
@@ -277,6 +282,7 @@ extern "C" const char* Kotlin_callsCheckerGoodFunctionNames[] = {
         "K32GetProcessMemoryInfo",
         "VirtualFree",
         "madvise",
+        "GetNumaHighestNodeNumber",
 };
 
 namespace {
