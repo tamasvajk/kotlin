@@ -126,7 +126,7 @@ abstract class DataClassMembersGenerator(
         fun generateEqualsMethodBody(properties: List<IrProperty>) {
             val irType = irClass.defaultType
 
-            if (!irClass.isSingleFieldValueClass) {
+            if (!irClass.isValue) {
                 +irIfThenReturnTrue(irEqeqeq(irThis(), irOther()))
             }
             +irIfThenReturnFalse(irNotIs(irOther(), irType))
