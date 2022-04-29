@@ -226,6 +226,8 @@ internal fun Context.psiToIr(
 
     // Note: coupled with [shouldLower] below.
     irModules = modules.filterValues { llvmModuleSpecification.containsModule(it) }
+    // TODO: A comment.
+    irModules.values.forEach { module -> module.files.sortBy { it.fileEntry.name } }
 
     if (!isProducingLibrary)
         irLinker = irDeserializer as KonanIrLinker
