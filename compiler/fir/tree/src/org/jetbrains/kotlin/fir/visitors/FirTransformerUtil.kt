@@ -13,12 +13,11 @@ fun <T : FirElement, D> T.transformSingle(transformer: FirTransformer<D>, data: 
 }
 
 fun <T : FirElement, D> MutableList<T>.transformInplace(transformer: FirTransformer<D>, data: D) {
-    val iterator = this.listIterator()
-    while (iterator.hasNext()) {
-        val next = iterator.next() as FirPureAbstractElement
+    for (index in 0 until size) {
+        val next = get(index) as FirPureAbstractElement
         val result = next.transform<T, D>(transformer, data)
         if (result !== next) {
-            iterator.set(result)
+            set(index, result)
         }
     }
 }
@@ -29,17 +28,15 @@ sealed class TransformData<out D> {
 }
 
 inline fun <T : FirElement, D> MutableList<T>.transformInplace(transformer: FirTransformer<D>, dataProducer: (Int) -> TransformData<D>) {
-    val iterator = this.listIterator()
-    var index = 0
-    while (iterator.hasNext()) {
-        val next = iterator.next() as FirPureAbstractElement
-        val data = when (val data = dataProducer(index++)) {
+    for (index in 0 until size) {
+        val next = get(index) as FirPureAbstractElement
+        val data = when (val data = dataProducer(index)) {
             is TransformData.Data<D> -> data.value
             TransformData.Nothing -> continue
         }
         val result = next.transform<T, D>(transformer, data)
         if (result !== next) {
-            iterator.set(result)
+            set(index, result)
         }
     }
 }
