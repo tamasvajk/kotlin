@@ -7,13 +7,14 @@
 
 #include "../../mimalloc/c/include/mimalloc.h"
 #include "Alignment.hpp"
+#include "Common.h"
 
 using namespace kotlin;
 
-void* kotlin::allocateInObjectPool(size_t size) noexcept {
+NO_EXTERNAL_CALLS_CHECK void* kotlin::allocateInObjectPool(size_t size) noexcept {
     return mi_calloc_aligned(1, size, kObjectAlignment);
 }
 
-void kotlin::freeInObjectPool(void* ptr) noexcept {
+NO_EXTERNAL_CALLS_CHECK void kotlin::freeInObjectPool(void* ptr) noexcept {
     mi_free(ptr);
 }
