@@ -44,12 +44,14 @@ fun FirBasedSymbol<*>.getDeprecation(callSite: FirElement?): DeprecationInfo? {
 }
 
 fun FirAnnotationContainer.getDeprecationInfos(currentVersion: ApiVersion): DeprecationsPerUseSite {
-    val deprecationByUseSite = mutableMapOf<AnnotationUseSiteTarget?, DeprecationInfo>()
+    var deprecationByUseSite: MutableMap<AnnotationUseSiteTarget?, DeprecationInfo>? = null
     val fromJava = this is FirDeclaration && this.isJavaOrEnhancement
-    annotations.extractDeprecationInfoPerUseSite(currentVersion, fromJava).toMap(deprecationByUseSite)
+    annotations.extractDeprecationInfoPerUseSite(currentVersion, fromJava).let {
+        if (it.isNotEmpty()) deprecationByUseSite = it.toMap(mutableMapOf())
+    }
 
     if (this is FirProperty) {
-        getDeprecationsFromAccessors(getter, setter, currentVersion).bySpecificSite?.forEach { (k, v) -> deprecationByUseSite[k] = v }
+        deprecationByUseSite = deprecationsFromAccessorTo(deprecationByUseSite, getter, setter, currentVersion)
     }
 
     return DeprecationsPerUseSite.fromMap(deprecationByUseSite)
@@ -61,15 +63,25 @@ fun getDeprecationsFromAccessors(
     setter: FirFunction?,
     currentVersion: ApiVersion
 ): DeprecationsPerUseSite {
-    val perUseSite = buildMap<AnnotationUseSiteTarget, DeprecationInfo> {
-        val setterDeprecations = setter?.getDeprecationInfos(currentVersion)
-        setterDeprecations?.all?.let { put(AnnotationUseSiteTarget.PROPERTY_SETTER, it) }
-        setterDeprecations?.bySpecificSite?.let { putAll(it) }
-        val getterDeprecations = getter?.getDeprecationInfos(currentVersion)
-        getterDeprecations?.all?.let { put(AnnotationUseSiteTarget.PROPERTY_GETTER, it) }
-        getterDeprecations?.bySpecificSite?.let { putAll(it) }
-    }
-    return if (perUseSite.isEmpty()) EmptyDeprecationsPerUseSite else DeprecationsPerUseSite(null, perUseSite)
+    val perUseSite = deprecationsFromAccessorTo(null, getter, setter, currentVersion)
+    return DeprecationsPerUseSite.fromMap(perUseSite)
+}
+
+private fun deprecationsFromAccessorTo(
+    targetOrNull: MutableMap<AnnotationUseSiteTarget?, DeprecationInfo>?,
+    getter: FirFunction?,
+    setter: FirFunction?,
+    currentVersion: ApiVersion
+): MutableMap<AnnotationUseSiteTarget?, DeprecationInfo>? {
+    var target = targetOrNull
+    fun getTarget() = target ?: (mutableMapOf<AnnotationUseSiteTarget?, DeprecationInfo>().also { target = it })
+    val setterDeprecations = setter?.getDeprecationInfos(currentVersion)
+    setterDeprecations?.all?.let { getTarget().put(AnnotationUseSiteTarget.PROPERTY_SETTER, it) }
+    setterDeprecations?.bySpecificSite?.let { getTarget().putAll(it) }
+    val getterDeprecations = getter?.getDeprecationInfos(currentVersion)
+    getterDeprecations?.all?.let { getTarget().put(AnnotationUseSiteTarget.PROPERTY_GETTER, it) }
+    getterDeprecations?.bySpecificSite?.let { getTarget().putAll(it) }
+    return target
 }
 
 fun List<FirAnnotation>.getDeprecationInfosFromAnnotations(currentVersion: ApiVersion, fromJava: Boolean): DeprecationsPerUseSite {
