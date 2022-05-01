@@ -324,7 +324,7 @@ public abstract class FileBasedKotlinClass implements KotlinJvmBinaryClass {
             return ClassId.topLevel(new FqName(name.replace('/', '.')));
         }
 
-        List<String> classes = new SmartList(1);
+        SmartList<String> classes = null;
         boolean local = false;
 
         while (true) {
@@ -334,14 +334,16 @@ public abstract class FileBasedKotlinClass implements KotlinJvmBinaryClass {
                 local = true;
                 break;
             }
-            classes.add(outer.innerSimpleName);
+            if (classes == null) classes = new SmartList<String>(outer.innerSimpleName);
+            else classes.add(outer.innerSimpleName);
             name = outer.outerInternalName;
         }
 
         FqName outermostClassFqName = new FqName(name.replace('/', '.'));
-        classes.add(outermostClassFqName.shortName().asString());
+        if (classes == null) classes = new SmartList<String>(outermostClassFqName.shortName().asString());
+        else classes.add(outermostClassFqName.shortName().asString());
 
-        Collections.reverse(classes);
+        if (classes.size() > 1) Collections.reverse(classes);
 
         FqName packageFqName = outermostClassFqName.parent();
         FqName relativeClassName = FqName.fromSegments(classes);
