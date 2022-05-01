@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.name.FqName;
 import org.jetbrains.kotlin.name.Name;
 import org.jetbrains.kotlin.resolve.constants.ClassLiteralValue;
 import org.jetbrains.kotlin.resolve.jvm.JvmPrimitiveType;
+import org.jetbrains.kotlin.utils.SmartList;
 import org.jetbrains.org.objectweb.asm.*;
 
 import java.util.*;
@@ -323,7 +324,7 @@ public abstract class FileBasedKotlinClass implements KotlinJvmBinaryClass {
             return ClassId.topLevel(new FqName(name.replace('/', '.')));
         }
 
-        List<String> classes = new ArrayList<>(1);
+        List<String> classes = new SmartList(1);
         boolean local = false;
 
         while (true) {
