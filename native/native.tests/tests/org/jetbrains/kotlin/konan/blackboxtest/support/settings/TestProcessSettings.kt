@@ -69,8 +69,8 @@ internal enum class OptimizationMode(private val description: String, val compil
  * The Kotlin/Native memory model.
  */
 internal enum class MemoryModel(val compilerFlags: List<String>?) {
-    DEFAULT(null),
-    EXPERIMENTAL(listOf("-memory-model", "experimental"));
+    DEFAULT(listOf("-memory-model", "strict")),
+    EXPERIMENTAL(null);
 
     override fun toString() = compilerFlags?.joinToString(prefix = "(", separator = " ", postfix = ")").orEmpty()
 }

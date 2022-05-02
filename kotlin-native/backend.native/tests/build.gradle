@@ -93,7 +93,7 @@ tasks.withType(KonanCompileNativeBinary.class).configureEach {
     enableTwoStageCompilation = twoStageEnabled
 }
 
-ext.isExperimentalMM = project.globalTestArgs.contains("-memory-model") && project.globalTestArgs.contains("experimental")
+ext.isExperimentalMM = !(project.globalTestArgs.contains("-memory-model") && project.globalTestArgs.contains("strict"))
 ext.isNoopGC = project.globalTestArgs.contains("-Xgc=noop")
 
 // TODO: It also makes sense to test -g without asserts, and also to test -opt with asserts.
@@ -5568,7 +5568,7 @@ if (isAppleTarget(project)) {
     }
 
     frameworkTest("testMultipleFrameworksStatic") {
-         if (cacheTesting != null && !isExperimentalMM) {
+         if (cacheTesting != null && isExperimentalMM) {
             // See https://youtrack.jetbrains.com/issue/KT-34261.
             expectedExitStatus = 134
          }

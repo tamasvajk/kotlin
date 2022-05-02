@@ -6,20 +6,15 @@
 package org.jetbrains.kotlin.backend.konan
 
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
-import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.konan.file.File
-import org.jetbrains.kotlin.konan.target.CompilerOutputKind
-import org.jetbrains.kotlin.konan.target.KonanTarget
 import org.jetbrains.kotlin.library.KotlinLibrary
-import org.jetbrains.kotlin.library.resolver.KotlinLibraryResolveResult
 
 class CacheSupport(
-        val configuration: CompilerConfiguration,
-        resolvedLibraries: KotlinLibraryResolveResult,
-        target: KonanTarget,
-        produce: CompilerOutputKind
+        val config: KonanConfig, // it's need to be careful in using it, it can be in process of initialization
 ) {
-    private val allLibraries = resolvedLibraries.getFullList()
+    private val configuration
+        get() = config.configuration
+    private val allLibraries = config.resolvedLibraries.getFullList()
 
     // TODO: consider using [FeaturedLibraries.kt].
     private val fileToLibrary = allLibraries.associateBy { it.libraryFile }
@@ -53,9 +48,9 @@ class CacheSupport(
         val hasCachedLibs = explicitCacheFiles.isNotEmpty() || implicitCacheDirectories.isNotEmpty()
 
         val ignoreReason = when {
-            configuration.getBoolean(KonanConfigKeys.OPTIMIZATION) -> "for optimized compilation"
-            configuration.get(BinaryOptions.memoryModel) == MemoryModel.EXPERIMENTAL -> "with experimental memory model"
-            configuration.getBoolean(KonanConfigKeys.PROPERTY_LAZY_INITIALIZATION) -> "with experimental lazy top levels initialization"
+            config.optimizationsEnabled -> "for optimized compilation"
+            config.memoryModel != MemoryModel.EXPERIMENTAL -> "with strict memory model"
+            !config.propertyLazyInitialization -> "without lazy top levels initialization"
             configuration.get(BinaryOptions.stripDebugInfoFromNativeLibs) == false -> "with native libs debug info"
             else -> null
         }
@@ -66,7 +61,7 @@ class CacheSupport(
 
         val ignoreCachedLibraries = ignoreReason != null
         CachedLibraries(
-                target = target,
+                target = config.target,
                 allLibraries = allLibraries,
                 explicitCaches = if (ignoreCachedLibraries) emptyMap() else explicitCaches,
                 implicitCacheDirectories = if (ignoreCachedLibraries) emptyList() else implicitCacheDirectories
@@ -85,7 +80,7 @@ class CacheSupport(
             configuration.get(KonanConfigKeys.LIBRARIES_TO_CACHE)!!
                     .map { getLibrary(File(it)) }
                     .toSet()
-                    .also { if (!produce.isCache) check(it.isEmpty()) }
+                    .also { if (!config.produce.isCache) check(it.isEmpty()) }
         } else {
             val libraryToAddToCacheFile = File(libraryToAddToCachePath)
             val libraryToAddToCache = getLibrary(libraryToAddToCacheFile)
@@ -102,7 +97,7 @@ class CacheSupport(
 
     init {
         // Ensure dependencies of every cached library are cached too:
-        resolvedLibraries.getFullList { libraries ->
+        config.resolvedLibraries.getFullList { libraries ->
             libraries.map { library ->
                 val cache = cachedLibraries.getLibraryCache(library.library)
                 if (cache != null || library.library in librariesToCache) {
