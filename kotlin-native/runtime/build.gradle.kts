@@ -177,103 +177,21 @@ bitcode {
         onlyIf { targetSupportsThreads(target) }
     }
 
-    testsGroup(
-            "std_alloc_runtime_tests",
-            listOf(
-                "main",
-                "legacy_memory_manager",
-                "strict",
-                "std_alloc",
-                "objc"
-            )
-    )
+    testsGroup("std_alloc_runtime_tests", listOf("main", "legacy_memory_manager", "strict", "std_alloc", "objc"))
 
-    testsGroup(
-            "mimalloc_runtime_tests",
-            listOf(
-                "main",
-                "legacy_memory_manager",
-                "strict",
-                "mimalloc",
-                "opt_alloc",
-                "objc"
-            )
-    )
+    testsGroup("mimalloc_runtime_tests", listOf("main", "legacy_memory_manager", "strict", "mimalloc", "opt_alloc", "objc"))
 
-    testsGroup(
-            "experimentalMM_mimalloc_runtime_tests",
-            listOf(
-                "main",
-                "experimental_memory_manager",
-                "common_gc",
-                "same_thread_ms_gc",
-                "mimalloc",
-                "opt_alloc",
-                "objc"
-            )
-    )
+    testsGroup("experimentalMM_mimalloc_runtime_tests", listOf("main", "experimental_memory_manager", "common_gc", "same_thread_ms_gc", "mimalloc", "opt_alloc", "objc"))
 
-    testsGroup(
-            "experimentalMM_std_alloc_runtime_tests",
-            listOf(
-                "main",
-                "experimental_memory_manager",
-                "common_gc",
-                "same_thread_ms_gc",
-                "std_alloc",
-                "objc"
-            )
-    )
+    testsGroup("experimentalMM_std_alloc_runtime_tests", listOf("main", "experimental_memory_manager", "common_gc", "same_thread_ms_gc", "std_alloc", "objc"))
 
-    testsGroup(
-            "experimentalMM_cms_mimalloc_runtime_tests",
-            listOf(
-                    "main",
-                    "experimental_memory_manager",
-                    "common_gc",
-                    "concurrent_ms_gc",
-                    "mimalloc",
-                    "opt_alloc",
-                    "objc"
-            )
-    )
+    testsGroup("experimentalMM_cms_mimalloc_runtime_tests", listOf("main", "experimental_memory_manager", "common_gc", "concurrent_ms_gc", "mimalloc", "opt_alloc", "objc"))
 
-    testsGroup(
-            "experimentalMM_cms_std_alloc_runtime_tests",
-            listOf(
-                    "main",
-                    "experimental_memory_manager",
-                    "common_gc",
-                    "concurrent_ms_gc",
-                    "std_alloc",
-                    "objc"
-            )
-    )
+    testsGroup("experimentalMM_cms_std_alloc_runtime_tests", listOf("main", "experimental_memory_manager", "common_gc", "concurrent_ms_gc", "std_alloc", "objc"))
 
-    testsGroup(
-            "experimentalMM_noop_mimalloc_runtime_tests",
-            listOf(
-                "main",
-                "experimental_memory_manager",
-                "common_gc",
-                "noop_gc",
-                "mimalloc",
-                "opt_alloc",
-                "objc"
-            )
-    )
+    testsGroup("experimentalMM_noop_mimalloc_runtime_tests", listOf("main", "experimental_memory_manager", "common_gc", "noop_gc", "mimalloc", "opt_alloc", "objc"))
 
-    testsGroup(
-            "experimentalMM_noop_std_alloc_runtime_tests",
-            listOf(
-                "main",
-                "experimental_memory_manager",
-                "common_gc",
-                "noop_gc",
-                "std_alloc",
-                "objc"
-            )
-    )
+    testsGroup("experimentalMM_noop_std_alloc_runtime_tests", listOf("main", "experimental_memory_manager", "common_gc", "noop_gc", "std_alloc", "objc"))
 }
 
 val hostRuntime by tasks.registering {
