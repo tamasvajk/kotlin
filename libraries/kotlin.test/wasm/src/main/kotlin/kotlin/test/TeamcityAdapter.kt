@@ -7,6 +7,9 @@ package kotlin.test
 
 import kotlin.test.FrameworkAdapter
 
+@JsFun("() => typeof arguments !== 'undefined' ? arguments.join(' ') : '' ")
+private external fun arguments(): String
+
 internal class TeamcityAdapter : FrameworkAdapter {
     private enum class MessageType(val type: String) {
         Started("testStarted"),
@@ -42,29 +45,94 @@ internal class TeamcityAdapter : FrameworkAdapter {
         }
     }
 
-    override fun suite(name: String, ignored: Boolean, suiteFn: () -> Unit) {
+    private val testArguments: FrameworkTestArguments by lazy {
+        FrameworkTestArguments.parse(arguments().split(' '))
+    }
+
+    private fun runSuite(name: String, suiteFn: () -> Unit) {
         MessageType.SuiteStarted.report(name)
+        try {
+            suiteFn()
+            MessageType.SuiteFinished.report(name)
+        } catch (e: Throwable) {
+            MessageType.SuiteFinished.report(name, e)
+        }
+    }
+
+    private fun runIgnoredSuite(name: String, suiteFn: () -> Unit) {
+        MessageType.SuiteStarted.report(name)
+        suiteFn()
+        MessageType.SuiteFinished.report(name)
+    }
+
+    private var isUnderIgnoredSuit: Boolean = false
+    private var includeState: TestIncludeState? = null
+    private inline fun enterIfIncluded(name: String, body: () -> Unit) {
+        val currentIncludeState = includeState
+        try {
+            if (currentIncludeState == null) {
+                includeState = TestIncludeState(testArguments)
+                body()
+            } else {
+                currentIncludeState.enterIfIncluded(name) {
+                    body()
+                }
+            }
+        } finally {
+            includeState = currentIncludeState
+        }
+    }
+
+    override fun suite(name: String, ignored: Boolean, suiteFn: () -> Unit) {
+        if (isUnderIgnoredSuit) {
+            runIgnoredSuite(name, suiteFn)
+            return
+        }
+
         if (!ignored) {
-            try {
-                suiteFn()
-                MessageType.SuiteFinished.report(name)
-            } catch (e: Throwable) {
-                MessageType.SuiteFinished.report(name, e)
+            enterIfIncluded(name) {
+                runSuite(name, suiteFn)
+            }
+        } else {
+            when (testArguments.ignoredTestSuites) {
+                IgnoredTestSuitesReporting.reportAsIgnoredTest -> {
+                    MessageType.Ignored.report(name)
+                }
+                IgnoredTestSuitesReporting.reportAllInnerTestsAsIgnored -> {
+                    var oldIsUnderIgnoredSuit = isUnderIgnoredSuit
+                    isUnderIgnoredSuit = true
+                    try {
+                        runIgnoredSuite(name, suiteFn)
+                    } finally {
+                        isUnderIgnoredSuit = oldIsUnderIgnoredSuit
+                    }
+                }
+                IgnoredTestSuitesReporting.skip -> { }
             }
         }
     }
 
     override fun test(name: String, ignored: Boolean, testFn: () -> Any?) {
+        if (isUnderIgnoredSuit) {
+            MessageType.Ignored.report(name)
+            return
+        }
+
         if (ignored) {
             MessageType.Ignored.report(name)
-        } else {
+            return
+        }
+
+        enterIfIncluded(name) {
             try {
                 MessageType.Started.report(name)
-                testFn()
-                MessageType.Finished.report(name)
+                if (!testArguments.dryRun) {
+                    testFn()
+                }
             } catch (e: Throwable) {
                 MessageType.Failed.report(name, e)
             }
+            MessageType.Finished.report(name)
         }
     }
 }
