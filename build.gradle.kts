@@ -76,11 +76,6 @@ val kotlinVersion by extra(
 
 val kotlinLanguageVersion by extra("1.7")
 
-allprojects {
-    group = "org.jetbrains.kotlin"
-    version = kotlinVersion
-}
-
 extra["kotlin_root"] = rootDir
 
 val jpsBootstrap by configurations.creating
@@ -133,11 +128,6 @@ IdeVersionConfigurator.setCurrentIde(project)
 if (!project.hasProperty("versions.kotlin-native")) {
     extra["versions.kotlin-native"] = "1.7.20-dev-853"
 }
-
-val useJvmFir by extra(project.kotlinBuildProperties.useFir)
-val useFirLT by extra(project.kotlinBuildProperties.useFirWithLightTree)
-val useFirIC by extra(project.kotlinBuildProperties.useFirTightIC)
-val renderDiagnosticNames by extra(project.kotlinBuildProperties.renderDiagnosticNames)
 
 val irCompilerModules = arrayOf(
     ":compiler:ir.tree",
@@ -341,15 +331,6 @@ extra["compilerArtifactsForIde"] = listOfNotNull(
     ":kotlin-main-kts"
 )
 
-// TODO: fix remaining warnings and remove this property.
-extra["tasksWithWarnings"] = listOf(
-    ":kotlin-gradle-plugin:compileKotlin",
-    ":kotlin-gradle-plugin:compileCommonKotlin",
-    ":kotlin-gradle-plugin:compileGradle70Kotlin"
-)
-
-val tasksWithWarnings: List<String> by extra
-
 val coreLibProjects = listOfNotNull(
     ":kotlin-stdlib",
     ":kotlin-stdlib-common",
@@ -366,17 +347,7 @@ val coreLibProjects = listOfNotNull(
     ":kotlin-test:kotlin-test-js".takeIf { !kotlinBuildProperties.isInJpsBuildIdeaSync },
     ":kotlin-reflect"
 )
-
-val projectsWithDisabledFirBootstrap = coreLibProjects + listOf(
-    ":kotlin-gradle-plugin",
-    ":kotlinx-metadata",
-    ":kotlinx-metadata-jvm",
-    // For some reason stdlib isn't imported correctly for this module
-    // Probably it's related to kotlin-test module usage
-    ":kotlin-gradle-statistics",
-    // Requires serialization plugin
-    ":wasm:wasm.ir"
-)
+extra["coreLibProjects"] = coreLibProjects
 
 val gradlePluginProjects = listOf(
     ":kotlin-gradle-plugin",
@@ -390,25 +361,6 @@ val gradlePluginProjects = listOf(
     ":kotlin-parcelize-compiler",
     ":kotlin-lombok"
 )
-
-apply {
-    from("libraries/commonConfiguration.gradle")
-}
-
-apply {
-    if (extra["isDeployStagingRepoGenerationRequired"] as? Boolean == true) {
-        logger.info("Applying configuration for sonatype release")
-        from("libraries/prepareSonatypeStaging.gradle")
-    }
-}
-
-fun Task.listConfigurationContents(configName: String) {
-    doFirst {
-        project.configurations.findByName(configName)?.let {
-            println("$configName configuration files:\n${it.allArtifacts.files.files.joinToString("\n  ", "  ")}")
-        }
-    }
-}
 
 val ignoreTestFailures by extra(project.kotlinBuildProperties.ignoreTestFailures)
 
@@ -459,177 +411,15 @@ allprojects {
 
         jcenter()
     }
+}
 
-    if (path.startsWith(":kotlin-ide.")) {
-        return@allprojects
-    }
-
-    configurations.maybeCreate("embedded").apply {
-        isCanBeConsumed = false
-        isCanBeResolved = true
-        attributes {
-            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.JAVA_RUNTIME))
-            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements.JAR))
-        }
-    }
-
-    configurations.maybeCreate("embeddedElements").apply {
-        extendsFrom(configurations["embedded"])
-        isCanBeConsumed = true
-        isCanBeResolved = false
-        attributes {
-            attribute(Usage.USAGE_ATTRIBUTE, objects.named("embedded-java-runtime"))
-        }
-    }
-
-    // There are problems with common build dir:
-    //  - some tests (in particular js and binary-compatibility-validator depend on the fixed (default) location
-    //  - idea seems unable to exclude common buildDir from indexing
-    // therefore it is disabled by default
-    // buildDir = File(commonBuildDir, project.name)
-
-    project.configureJvmDefaultToolchain()
-    plugins.withId("java-base") {
-        project.configureShadowJarSubstitutionInCompileClasspath()
-    }
-
-    tasks.withType<JavaCompile> {
-        options.compilerArgs.add("-Xlint:deprecation")
-        options.compilerArgs.add("-Xlint:unchecked")
-        options.compilerArgs.add("-Werror")
-    }
-
-    val commonCompilerArgs = listOfNotNull(
-        "-opt-in=kotlin.RequiresOptIn",
-        "-progressive".takeIf { hasProperty("test.progressive.mode") }
-    )
-
-    tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>> {
-        kotlinOptions {
-            languageVersion = kotlinLanguageVersion
-            apiVersion = kotlinLanguageVersion
-            freeCompilerArgs = commonCompilerArgs
-        }
-
-        val relativePathBaseArg: String? =
-            "-Xklib-relative-path-base=$buildDir,$projectDir,$rootDir".takeIf {
-                !kotlinBuildProperties.getBoolean("kotlin.build.use.absolute.paths.in.klib")
-            }
-
-        doFirst {
-            if (relativePathBaseArg != null) {
-                kotlinOptions.freeCompilerArgs += relativePathBaseArg
-            }
-        }
-    }
-
-    val jvmCompilerArgs = listOf(
-        "-Xno-optimized-callable-references",
-        "-Xno-kotlin-nothing-value-exception",
-        "-Xsuppress-deprecated-jvm-target-warning" // Remove as soon as there are no modules for JDK 1.6 & 1.7
-    )
-
-    tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinJvmCompile> {
-        kotlinOptions {
-            freeCompilerArgs = commonCompilerArgs + jvmCompilerArgs
-
-            if (useJvmFir && this@allprojects.path !in projectsWithDisabledFirBootstrap) {
-                freeCompilerArgs += "-Xuse-fir"
-                freeCompilerArgs += "-Xabi-stability=stable"
-                if (useFirLT) {
-                    freeCompilerArgs += "-Xuse-fir-lt"
-                }
-                if (useFirIC) {
-                    freeCompilerArgs += "-Xuse-fir-ic"
-                }
-            }
-            if (renderDiagnosticNames) {
-                freeCompilerArgs += "-Xrender-internal-diagnostic-names"
-            }
-        }
-    }
-
-    if (!kotlinBuildProperties.disableWerror) {
-        tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinJvmCompile> {
-            if (path !in tasksWithWarnings) {
-                kotlinOptions {
-                    allWarningsAsErrors = true
-                }
-            }
-        }
-    }
-
-    tasks.withType(VerificationTask::class.java as Class<Task>) {
-        (this as VerificationTask).ignoreFailures = ignoreTestFailures
-    }
-
-    tasks.withType<Javadoc> {
-        enabled = false
-    }
-
-    tasks.withType<Jar> {
-        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    }
-
-    tasks.withType<AbstractArchiveTask> {
-        isPreserveFileTimestamps = false
-        isReproducibleFileOrder = true
-    }
-
-    tasks.withType<Test> {
-        outputs.doNotCacheIf("https://youtrack.jetbrains.com/issue/KTI-112") { true }
-    }
-
-    normalization {
-        runtimeClasspath {
-            ignore("META-INF/MANIFEST.MF")
-            ignore("META-INF/compiler.version")
-            ignore("META-INF/plugin.xml")
-            ignore("kotlin/KotlinVersionCurrentValue.class")
-        }
-    }
-
-    tasks {
-        register("listArchives") { listConfigurationContents("archives") }
-
-        register("listDistJar") { listConfigurationContents("distJar") }
-
-        // Aggregate task for build related checks
-        register("checkBuild")
-    }
-
-    apply(from = "$rootDir/gradle/cacheRedirector.gradle.kts")
-
-    afterEvaluate {
-        fun File.toProjectRootRelativePathOrSelf() = (relativeToOrNull(rootDir)?.takeUnless { it.startsWith("..") } ?: this).path
-
-        fun FileCollection.printClassPath(role: String) =
-            println("${project.path} $role classpath:\n  ${joinToString("\n  ") { it.toProjectRootRelativePathOrSelf() }}")
-
-        try {
-            javaPluginExtension()
-        } catch (_: UnknownDomainObjectException) {
-            null
-        }?.let { javaExtension ->
-            tasks {
-                register("printCompileClasspath") { doFirst { javaExtension.sourceSets["main"].compileClasspath.printClassPath("compile") } }
-                register("printRuntimeClasspath") { doFirst { javaExtension.sourceSets["main"].runtimeClasspath.printClassPath("runtime") } }
-                register("printTestCompileClasspath") { doFirst { javaExtension.sourceSets["test"].compileClasspath.printClassPath("test compile") } }
-                register("printTestRuntimeClasspath") { doFirst { javaExtension.sourceSets["test"].runtimeClasspath.printClassPath("test runtime") } }
-            }
-        }
-
-        run configureCompilerClasspath@{
-            val bootstrapCompilerClasspath by rootProject.buildscript.configurations
-            configurations.findByName("kotlinCompilerClasspath")?.let {
-                dependencies.add(it.name, files(bootstrapCompilerClasspath))
-            }
-
-            configurations.findByName("kotlinCompilerPluginClasspath")
-                ?.exclude("org.jetbrains.kotlin", "kotlin-scripting-compiler-embeddable")
-        }
-
-        apply(from = "$rootDir/gradle/testRetry.gradle.kts")
+apply {
+    from("libraries/commonConfiguration.gradle")
+    if (extra.has("isDeployStagingRepoGenerationRequired") &&
+        project.extra["isDeployStagingRepoGenerationRequired"] as Boolean == true
+    ) {
+        logger.info("Applying configuration for sonatype release")
+        from("libraries/prepareSonatypeStaging.gradle")
     }
 }
 
