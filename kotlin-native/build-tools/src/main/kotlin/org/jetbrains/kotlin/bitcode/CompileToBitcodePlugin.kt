@@ -26,9 +26,8 @@ import javax.inject.Inject
  * A plugin creating extensions to compile
  */
 open class CompileToBitcodePlugin : Plugin<Project> {
-    override fun apply(target: Project) = with(target) {
-        extensions.create(EXTENSION_NAME, CompileToBitcodeExtension::class.java, target)
-        Unit
+    override fun apply(target: Project) {
+        target.extensions.create(EXTENSION_NAME, CompileToBitcodeExtension::class.java, target)
     }
 
     companion object {
@@ -43,14 +42,14 @@ open class CompileToBitcodeExtension @Inject constructor(val project: Project) {
     }
 
     private val allMainModulesTasks by lazy {
-        val name = project.name.capitalize()
+        val name = project.name.capitalized
         targetList.get().associateBy(keySelector = { it }, valueTransform = {
             project.tasks.register("${it}$name")
         })
     }
 
     private val allTestsTasks by lazy {
-        val name = project.name.capitalize()
+        val name = project.name.capitalized
         targetList.get().associateBy(keySelector = { it }, valueTransform = {
             project.tasks.register("${it}${name}Tests")
         })
@@ -82,8 +81,7 @@ open class CompileToBitcodeExtension @Inject constructor(val project: Project) {
             val sanitizers: List<SanitizerKind?> = target.supportedSanitizers() + listOf(null)
             val allMainModulesTask = allMainModulesTasks[targetName]!!
             sanitizers.forEach { sanitizer ->
-                val taskName = "${targetName}${name.snakeCaseToCamelCase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
-                    }${suffixForSanitizer(sanitizer)}"
+                val taskName = fullTaskName(name, targetName, sanitizer)
                 val task = project.tasks.create(taskName, CompileToBitcode::class.java, name, targetName, outputGroup).apply {
                     srcDirs = project.files(srcRoot.resolve("cpp"))
                     headersDirs = srcDirs + project.files(srcRoot.resolve("headers"))
@@ -144,9 +142,9 @@ open class CompileToBitcodeExtension @Inject constructor(val project: Project) {
             else task
         }
         // TODO: Consider using sanitized versions.
-        val testFrameworkTasks = listOf(project.tasks.getByName("${target}Googletest") as CompileToBitcode, project.tasks.getByName("${target}Googlemock") as CompileToBitcode)
+        val testFrameworkTasks = listOf(project.tasks.getByName(fullTaskName("googletest", target, null)) as CompileToBitcode, project.tasks.getByName(fullTaskName("googlemock", target, null)) as CompileToBitcode)
 
-        val testSupportTask = project.tasks.getByName("${target}TestSupport${CompileToBitcodeExtension.suffixForSanitizer(sanitizer)}") as CompileToBitcode
+        val testSupportTask = project.tasks.getByName(fullTaskName("test_support", target, sanitizer)) as CompileToBitcode
 
         val mimallocEnabled = testedTaskNames.any { it.contains("mimalloc", ignoreCase = true) }
         val compileTask = project.tasks.create(
@@ -188,10 +186,9 @@ open class CompileToBitcodeExtension @Inject constructor(val project: Project) {
             val sanitizers: List<SanitizerKind?> = target.supportedSanitizers() + listOf(null)
             val allTestsTask = allTestsTasks[targetName]!!
             sanitizers.forEach { sanitizer ->
-                val suffix = CompileToBitcodeExtension.suffixForSanitizer(sanitizer)
-                val name = targetName + testTaskName.snakeCaseToCamelCase().capitalize() + suffix
+                val name = fullTaskName(testTaskName, targetName, sanitizer)
                 val testedNames = testedTaskNames.map {
-                    targetName + it.snakeCaseToCamelCase().capitalize() + suffix
+                    fullTaskName(it, targetName, sanitizer)
                 }
                 val task = createTestTask(project, name, testedNames, sanitizer)
                 allTestsTask.configure {
@@ -205,14 +202,19 @@ open class CompileToBitcodeExtension @Inject constructor(val project: Project) {
 
         private const val COMPILATION_DATABASE_TASK_NAME = "CompilationDatabase"
 
-        private fun String.snakeCaseToCamelCase() =
-                split('_').joinToString(separator = "") { it.capitalize() }
+        private val String.capitalized: String
+            get() = replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 
-        fun suffixForSanitizer(sanitizer: SanitizerKind?) = when (sanitizer) {
-            null -> ""
-            SanitizerKind.ADDRESS -> "_ASAN"
-            SanitizerKind.THREAD -> "_TSAN"
-        }
+        private fun String.snakeCaseToUpperCamelCase() = split('_').joinToString(separator = "") { it.capitalized }
+
+        private fun fullTaskName(name: String, targetName: String, sanitizer: SanitizerKind?) = "${targetName}${name.snakeCaseToUpperCamelCase()}${sanitizer.suffix}"
+
+        private val SanitizerKind?.suffix
+            get() = when (this) {
+                null -> ""
+                SanitizerKind.ADDRESS -> "_ASAN"
+                SanitizerKind.THREAD -> "_TSAN"
+            }
 
     }
 }
