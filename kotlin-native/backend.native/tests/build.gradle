@@ -93,7 +93,9 @@ tasks.withType(KonanCompileNativeBinary.class).configureEach {
     enableTwoStageCompilation = twoStageEnabled
 }
 
-ext.isExperimentalMM = !(project.globalTestArgs.contains("-memory-model") && project.globalTestArgs.contains("strict"))
+ext.isExperimentalMM = !(project.globalTestArgs.contains("-memory-model") &&
+                         project.globalTestArgs.contains("strict")) &&
+                         project.testTarget != 'wasm32'
 ext.isNoopGC = project.globalTestArgs.contains("-Xgc=noop")
 
 // TODO: It also makes sense to test -g without asserts, and also to test -opt with asserts.
