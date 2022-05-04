@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.psi2ir.generators
 
+import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.backend.common.BackendException
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.ir.IrStatement
@@ -132,8 +133,13 @@ class StatementGenerator(
             .generateLocalDelegatedProperty(ktProperty, ktDelegate, variableDescriptor, scopeOwnerSymbol)
 
     override fun visitDestructuringDeclaration(multiDeclaration: KtDestructuringDeclaration, data: Nothing?): IrStatement {
+        val (blockStartOffset, blockEndOffset) = if (context.extensions.debugInfoOnlyOnVariablesInDestructuringDeclarations) {
+            SYNTHETIC_OFFSET to SYNTHETIC_OFFSET
+        } else {
+            multiDeclaration.startOffsetSkippingComments to multiDeclaration.endOffset
+        }
         val irBlock = IrCompositeImpl(
-            SYNTHETIC_OFFSET, SYNTHETIC_OFFSET,
+            blockStartOffset, blockEndOffset,
             context.irBuiltIns.unitType, IrStatementOrigin.DESTRUCTURING_DECLARATION
         )
         val ktInitializer = multiDeclaration.initializer!!
@@ -171,15 +177,31 @@ class StatementGenerator(
             val componentSubstitutedCall = pregenerateCall(componentResolvedCall)
 
             componentSubstitutedCall.setExplicitReceiverValue(containerValue)
-            containerValue = restContainerValue
 
+            if (context.extensions.debugInfoOnlyOnVariablesInDestructuringDeclarations) {
+                containerValue = restContainerValue
+            }
+
+            val (componentCallStartOffset, componentCallEndOffset) =
+                if (context.extensions.debugInfoOnlyOnVariablesInDestructuringDeclarations) {
+                    SYNTHETIC_OFFSET to SYNTHETIC_OFFSET
+                } else {
+                    ktEntry.startOffsetSkippingComments to ktEntry.endOffset
+                }
             val irComponentCall = callGenerator.generateCall(
-                SYNTHETIC_OFFSET, SYNTHETIC_OFFSET,
+                componentCallStartOffset, componentCallEndOffset,
                 componentSubstitutedCall,
                 IrStatementOrigin.COMPONENT_N.withIndex(index + 1)
             )
+
+            val componentVarOffsetSource: PsiElement =
+                if (context.extensions.debugInfoOnlyOnVariablesInDestructuringDeclarations) {
+                    ktEntry.nameIdentifier!!
+                } else {
+                    ktEntry
+                }
             val irComponentVar = context.symbolTable.declareVariable(
-                ktEntry.nameIdentifier!!.startOffset, ktEntry.nameIdentifier!!.endOffset,
+                componentVarOffsetSource.startOffsetSkippingComments, componentVarOffsetSource.endOffset,
                 IrDeclarationOrigin.DEFINED,
                 componentVariable, componentVariable.type.toIrType(), irComponentCall
             )
