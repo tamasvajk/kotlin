@@ -6,15 +6,12 @@
 #include "ObjectAlloc.hpp"
 
 #include "../../mimalloc/c/include/mimalloc.h"
-#include "../../mimalloc/c/include/mimalloc-internal.h"
 #include "Alignment.hpp"
 
 using namespace kotlin;
 
 void kotlin::initObjectPool() noexcept {
     mi_thread_init();
-    // Precomputes the number of available cores.
-    _mi_os_numa_node_count();
 }
 
 void* kotlin::allocateInObjectPool(size_t size) noexcept {
