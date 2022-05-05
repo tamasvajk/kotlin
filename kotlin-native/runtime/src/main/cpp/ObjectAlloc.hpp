@@ -10,6 +10,7 @@
 
 namespace kotlin {
 
+void initObjectPool() noexcept;
 void* allocateInObjectPool(size_t size) noexcept;
 void freeInObjectPool(void* ptr) noexcept;
 

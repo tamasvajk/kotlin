@@ -20,6 +20,8 @@ extern "C" void dlfree(void*);
 
 using namespace kotlin;
 
+void kotlin::initObjectPool() noexcept {}
+
 void* kotlin::allocateInObjectPool(size_t size) noexcept {
     // TODO: Check that alignment to kObjectAlignment is satisfied.
     return callocImpl(1, size);
