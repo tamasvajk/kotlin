@@ -22,6 +22,8 @@ dependencies {
     }
 }
 
+project.applyFixForStdlib16()
+
 if (!project.path.startsWith(":kotlin-ide.")) {
     apply(from = "$rootDir/gradle/cacheRedirector.gradle.kts")
     project.configureJvmDefaultToolchain()
@@ -101,7 +103,7 @@ fun Project.configureJavaBasePlugin() {
 }
 
 fun Project.configureKotlinCompilationOptions() {
-    plugins.withType<KotlinBasePluginWrapper>() {
+    plugins.withType<KotlinBasePluginWrapper> {
         val commonCompilerArgs = listOfNotNull(
             "-opt-in=kotlin.RequiresOptIn",
             "-progressive".takeIf { hasProperty("test.progressive.mode") }
@@ -179,6 +181,16 @@ fun Project.configureKotlinCompilationOptions() {
                     allWarningsAsErrors = !kotlinBuildProperties.disableWerror
                 }
             }
+        }
+    }
+}
+
+// Still compile stdlib, reflect, kotlin.test and scripting runtimes
+// with JVM target 1.6 to simplify migration from Kotlin 1.6 to 1.7.
+fun Project.applyFixForStdlib16() {
+    plugins.withType<KotlinBasePluginWrapper>() {
+        dependencies {
+            "kotlinCompilerClasspath"(project(":libraries:tools:stdlib-compiler-classpath"))
         }
     }
 }
