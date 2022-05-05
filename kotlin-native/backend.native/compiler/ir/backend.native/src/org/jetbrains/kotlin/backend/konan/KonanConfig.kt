@@ -323,7 +323,15 @@ class KonanConfig(val project: Project, val configuration: CompilerConfiguration
 
     internal val testDumpFile: File? = configuration[KonanConfigKeys.TEST_DUMP_OUTPUT_PATH]?.let(::File)
 
-    internal val cacheSupport = CacheSupport(this)
+    internal val cacheSupport = CacheSupport(
+            configuration = configuration,
+            resolvedLibraries = resolvedLibraries,
+            memoryModel = memoryModel,
+            optimizationsEnabled = optimizationsEnabled,
+            propertyLazyInitialization = propertyLazyInitialization,
+            target = target,
+            produce = produce
+    )
 
     internal val cachedLibraries: CachedLibraries
         get() = cacheSupport.cachedLibraries
