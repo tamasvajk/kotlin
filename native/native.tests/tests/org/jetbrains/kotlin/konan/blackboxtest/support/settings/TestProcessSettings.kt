@@ -69,8 +69,12 @@ internal enum class OptimizationMode(private val description: String, val compil
  * The Kotlin/Native memory model.
  */
 internal enum class MemoryModel(val compilerFlags: List<String>?) {
+    /**
+     * TODO: rename DEFAULT to LEGACY. It was postponed, as it would require simultaneous change in teamcity configuration
+     * but it should be done at some point.
+     */
     DEFAULT(listOf("-memory-model", "strict")),
-    EXPERIMENTAL(null);
+    EXPERIMENTAL(listOf("-memory-model", "experimental"));
 
     override fun toString() = compilerFlags?.joinToString(prefix = "(", separator = " ", postfix = ")").orEmpty()
 }
