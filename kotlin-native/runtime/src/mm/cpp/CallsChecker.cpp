@@ -142,7 +142,6 @@ extern "C" const char* Kotlin_callsCheckerGoodFunctionNames[] = {
         "vsnprintf",
         "bcmp",
 
-        "access",
         "getenv",
         "setenv",
         "unsetenv",
@@ -278,7 +277,6 @@ extern "C" const char* Kotlin_callsCheckerGoodFunctionNames[] = {
         "K32GetProcessMemoryInfo",
         "VirtualFree",
         "madvise",
-        "GetNumaHighestNodeNumber",
 };
 
 namespace {
