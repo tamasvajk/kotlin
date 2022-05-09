@@ -1369,6 +1369,8 @@ public class JsToStringGenerationVisitor extends JsVisitor {
 
     private void printComments(List<JsComment> comments, boolean isAfterNode) {
         if (comments == null) return;
+
+        boolean previousNeedSemi = needSemi;
         needSemi = isAfterNode;
         insideComments = true;
 
@@ -1377,6 +1379,10 @@ public class JsToStringGenerationVisitor extends JsVisitor {
         }
 
         insideComments = false;
+
+        if (!isAfterNode) {
+            needSemi = previousNeedSemi;
+        }
     }
 
     private void popSourceInfo() {
