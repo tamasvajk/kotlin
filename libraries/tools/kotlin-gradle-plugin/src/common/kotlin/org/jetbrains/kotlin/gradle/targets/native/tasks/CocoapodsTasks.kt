@@ -329,11 +329,11 @@ open class DefFileTask : DefaultTask() {
     @TaskAction
     fun generate() {
         outputFile.parentFile.mkdirs()
-        outputFile.writeText(
-            """
-            language = Objective-C
-            modules = ${pod.get().moduleName}
-        """.trimIndent()
-        )
+
+        with(pod.get()) {
+            val opt = if (headers != null) "headers = $headers"
+            else "modules = $moduleName"
+            outputFile.writeText("language = Objective-C\n$opt")
+        }
     }
 }
